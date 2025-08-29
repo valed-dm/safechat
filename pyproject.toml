@@ -9,8 +9,29 @@ license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aiogram (>=3.22.0,<4.0.0)",
+    "redis (>=6.4.0,<7.0.0)"
 ]
 
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.17.1"
+pre-commit = "^4.3.0"
+ruff = "^0.12.11"
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+fix = true
+unsafe-fixes = true
+
+[tool.ruff.lint]
+extend-select = ["E", "F", "W", "I", "B", "Q"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+combine-as-imports = false
+force-sort-within-sections = true
+lines-after-imports = 2
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
