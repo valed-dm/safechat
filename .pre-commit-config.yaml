@@ -1,0 +1,48 @@
+default_stages: [pre-commit, pre-push]
+fail_fast: true
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.10
+    hooks:
+      - id: ruff
+        name: Ruff (fix)
+        args: [--fix, --verbose]
+        stages: [pre-commit]
+        types: [python]
+        language_version: python3.12
+
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        name: Black (formatting)
+        language_version: python3.12
+        stages: [pre-commit]
+        types: [python]
+        args: [--safe, --quiet]
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: Mypy (type checking)
+        entry: poetry run mypy --install-types --non-interactive --strict bot/
+        language: system
+        pass_filenames: false
+        stages: [manual]
+        always_run: true
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=5000]
+        stages: [pre-commit]
+      - id: check-ast
+        stages: [pre-commit]
+      - id: check-yaml
+        stages: [pre-commit]
+      - id: end-of-file-fixer
+        stages: [pre-commit]
+      - id: trailing-whitespace
+        stages: [pre-commit]
