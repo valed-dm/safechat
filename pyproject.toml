@@ -1,0 +1,17 @@
+[project]
+name = "safechat"
+version = "0.1.0"
+description = "A Telegram bot that enables truly private messaging via a secure, end-to-end encrypted (E2EE) channel."
+authors = [
+    {name = "dmvaled",email = "dmvaled@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
