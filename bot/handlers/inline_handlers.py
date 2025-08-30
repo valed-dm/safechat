@@ -86,7 +86,7 @@ async def handle_secure_inline_input(
         # This is the message that will actually be sent
         final_message_content = InputTextMessageContent(
             message_text=f"✅ Ваше сообщение для @{partner_username}"
-                         f" зашифровано и готово к отправке."
+                         f" зашифровано и направлено получателю."
         )
 
         result = InlineQueryResultArticle(

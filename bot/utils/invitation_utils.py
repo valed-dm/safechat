@@ -20,6 +20,7 @@ from bot.keyboards.invitation_buttons import confirm_button
 from bot.keyboards.invitation_buttons import decline_button
 from bot.keyboards.invitation_buttons import start_chat_button
 from bot.keyboards.inviter_contacts_keyboard import contacts_keyboard
+from bot.keyboards.secure_input_keyboard import secure_input_keyboard
 from bot.services.pubsub_service import PubSubService
 from bot.utils.crypto_utils import encrypt_symmetric_key_with_rsa
 from bot.utils.crypto_utils import generate_symmetric_key
@@ -451,8 +452,6 @@ async def process_manual_username_input(
         return
 
     # 4. Set up the FSM state for both users
-    # --- ✅ THE CORRECT REFACTOR ---
-
     # 1. Prepare all the new session data in a single Python dictionary.
     new_session_data = {
         "secure_id": secure_id,
@@ -607,10 +606,25 @@ async def start_direct_chat_session(
     await inviter_state.storage.set_data(key=invitee_key, data=session_data)
     log.info(f"FSM state successfully set for invitee {invitee_id}")
 
-    # 8. Send the final confirmation message to both users
-    final_message = "✅ Безопасное соединение установлено. Вы можете начать общение."
-    await bot.send_message(inviter_id, final_message)
-    await bot.send_message(invitee_id, final_message)
+    # 8. Create the keyboards for both users
+    inviter_kb = secure_input_keyboard(partner_username=invitee_username)
+    invitee_kb = secure_input_keyboard(partner_username=inviter.username)
+
+    # 9. Send the final confirmation message WITH the keyboard
+    final_message_text = ("✅ Безопасное соединение установлено."
+                          " Нажмите кнопку ниже, чтобы написать сообщение.")
+
+    await bot.send_message(
+        chat_id=inviter.id,
+        text=final_message_text,
+        reply_markup=inviter_kb,
+    )
+    await bot.send_message(
+        chat_id=invitee_id,
+        text=final_message_text,
+        reply_markup=invitee_kb,
+    )
+
     log.info(
         f"Direct chat between @{inviter.username} and @{invitee_username} established."
     )
