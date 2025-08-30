@@ -105,25 +105,22 @@ async def decrypt_and_show_message(
     state: FSMContext,
     redis: Redis,
     cache_key: str,
-):
+) -> tuple[str, str]:
     """
-    Retrieves the symmetric key, decrypts the message, and displays it in an alert.
+    Retrieves and decrypts a cached message.
+    Returns: A tuple of (decrypted_plaintext, sender_username).
     """
-    # --- ✅ REFACTORED STATE USAGE ---
     fsm_data = await state.get_data()
     secure_id = fsm_data.get("secure_id")
-
     if not secure_id:
         raise ValueError(
             "Cannot decrypt: no active secure session found in your state."
         )
 
-    # Retrieve the symmetric key from our new Redis-based storage
     symmetric_key_bytes = await retrieve_symmetric_key(secure_id, redis)
     if not symmetric_key_bytes:
         raise ValueError("Cannot decrypt: symmetric key not found for this session.")
 
-    # Get sender username from the FSM data dictionary
     inviter_id = fsm_data.get("inviter_id")
     invitee_username = fsm_data.get("invitee_username")
     inviter_username = fsm_data.get("inviter_username")
@@ -132,28 +129,31 @@ async def decrypt_and_show_message(
         sender_username = invitee_username
     else:
         sender_username = inviter_username
-    # --- END OF REFACTOR ---
 
-    # 4. Convert hex data from the callback to bytes
     encrypted_hex = await retrieve_cached_data(cache_key, redis)
     if not encrypted_hex:
         raise ValueError(
             "Сообщение истекло или недействительно."
             " (Message has expired or is invalid.)"
         )
+
     try:
         iv_ciphertext_bytes = bytes.fromhex(encrypted_hex)
-    except ValueError as error:
-        raise ValueError("Invalid format: encrypted data is not valid hex.") from error
+        decrypted_text = await decrypt_message_with_aes(
+            key=symmetric_key_bytes,
+            iv_ciphertext=iv_ciphertext_bytes,
+        )
 
-    # 5. Call the core decryption utility
-    decrypted_text = await decrypt_message_with_aes(
-        key=symmetric_key_bytes, iv_ciphertext=iv_ciphertext_bytes
-    )
+        log.info(
+            f"User {query.from_user.id} decrypted a message from @{sender_username}."
+        )
+        return decrypted_text, sender_username
 
-    # 6. Format the final message and show it as a pop-up alert
-    msg = f"@{sender_username}: {decrypted_text}"
-    await query.answer(text=msg, show_alert=True)
-    log.info(
-        f"User {query.from_user.id}" f" decrypted a message from @{sender_username}."
-    )
+    except ValueError as e:
+        log.error(
+            f"Failed to decode hex for decryption."
+            f" Hex: '{encrypted_hex[:20]}...'. Error: {e}"
+        )
+        raise ValueError(
+            "Ошибка формата данных: не удалось расшифровать сообщение."
+        ) from e
