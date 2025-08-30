@@ -15,6 +15,7 @@ from bot.core.config import settings
 from bot.core.logging_setup import log
 from bot.keyboards.inviter_contacts_keyboard import contacts_keyboard
 from bot.keyboards.main_menu_keyboard import main_menu_keyboard
+from bot.keyboards.secure_input_keyboard import secure_input_keyboard
 from bot.keyboards.settings_keyboard import settings_menu_keyboard
 from bot.services.pubsub_service import PubSubService
 from bot.states import ConversationStates
@@ -203,23 +204,37 @@ async def handle_cancel_click(query: CallbackQuery, state: FSMContext):
         await query.answer(f"Ошибка: {e}", show_alert=True)
 
 
-@router.callback_query(SecureActionCallback.filter(F.action == "decrypt"))  # type: ignore
+@router.callback_query(SecureActionCallback.filter(F.action == "decrypt"))
 async def handle_decrypt_click(
     query: CallbackQuery,
     state: FSMContext,
-    callback_data: SecureActionCallback,
     redis: Redis,
+    callback_data: SecureActionCallback,
 ):
     """Handles clicks on any 'decrypt' button."""
     try:
-        # The encrypted data is directly in callback_data.value
-        await decrypt_and_show_message(
-            query, state, redis=redis, cache_key=callback_data.value
+        decrypted_text, sender_username = await decrypt_and_show_message(
+            query, state, redis, callback_data.value
         )
+
+        # 1. Show the decrypted message in a pop-up alert
+        final_alert_message = f"@{sender_username}: {decrypted_text}"
+        await query.answer(text=final_alert_message, show_alert=True)
+
+        # --- ✅ THE FIX ---
+        # 2. Re-display the secure input keyboard so the user can reply.
+        kb = secure_input_keyboard(partner_username=sender_username)
+
+        # 3. Edit the original "🔑 Encrypted Message..." to become the new input prompt
+        await query.message.edit_text(
+            "Ваш диалог защищен. Нажмите кнопку ниже, чтобы ответить.",
+            reply_markup=kb,
+        )
+        # --- END OF FIX ---
+
     except Exception as e:
         log.exception(f"Error during decryption for user {query.from_user.id}: {e}")
-        await query.answer(f"Error: {e}", show_alert=True)
-
+        await query.answer(f"Ошибка: {e}", show_alert=True)
 
 @router.callback_query(SecureActionCallback.filter(F.action == "abort"))  # type: ignore
 async def handle_abort_click(query: CallbackQuery, state: FSMContext):
@@ -316,16 +331,24 @@ async def handle_start_chat_click(
         await query.answer("Ошибка: не удалось найти данные сессии.", show_alert=True)
         return
 
-    message_text = "✅ Безопасное соединение установлено. Вы можете начать общение."
-
     try:
-        # Edit the inviter's message to show the final confirmation
-        await query.message.edit_text(message_text)
+        # --- ✅ THE FIX ---
+        inviter_kb = secure_input_keyboard(partner_username=invitee_username)
+        invitee_kb = secure_input_keyboard(partner_username=inviter_username)
 
-        # Send the final confirmation to the invitee
-        await bot.send_message(chat_id=invitee_id, text=message_text)
+        message_text = ("✅ Безопасное соединение установлено."
+                        " Нажмите кнопку ниже, чтобы написать сообщение.")
+
+        # Edit the inviter's message to show the keyboard
+        await query.message.edit_text(message_text, reply_markup=inviter_kb)
+
+        # Send the keyboard to the invitee
+        await bot.send_message(
+            chat_id=invitee_id, text=message_text, reply_markup=invitee_kb
+        )
+
         await query.answer()
 
-    except Exception:
-        log.exception("Failed to send final start-chat notifications.")
+    except Exception as e:
+        log.exception( "Failed to send final start-chat notifications. {}", e)
         await query.answer("Произошла ошибка при запуске чата.", show_alert=True)
